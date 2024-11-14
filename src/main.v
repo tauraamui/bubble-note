@@ -20,7 +20,7 @@ fn store_reminder(db_addr string, name string)! {
 		create table Reminder
 	}!
 
-	new_reminder := Reminder{ name: name created_time: time.now() }
+	new_reminder := Reminder{ id: int(db.last_insert_rowid() + 1) name: name created_time: time.now() }
 
 	sql db {
 		insert new_reminder into Reminder
