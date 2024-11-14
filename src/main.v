@@ -13,8 +13,8 @@ struct Reminder {
 	name         string
 }
 
-fn store_reminder(name string)! {
-	db := sqlite.connect('bubbles.db')!
+fn store_reminder(db_addr string, name string)! {
+	db := sqlite.connect(db_addr)!
 
 	sql db {
 		create table Reminder
@@ -29,15 +29,15 @@ fn store_reminder(name string)! {
 	println("stored reminder \"${name}\"")
 }
 
-fn remove_reminder(id int)! {
-	db := sqlite.connect('bubbles.db')!
+fn remove_reminder(db_addr string, id int)! {
+	db := sqlite.connect(db_addr)!
 	sql db {
 		update Reminder set delisted = true where id == id
 	}!
 }
 
-fn list_reminders()! {
-	db := sqlite.connect('bubbles.db')!
+fn list_reminders(db_addr string)! {
+	db := sqlite.connect(db_addr)!
 
 	all_reminders := sql db {
 		select from Reminder where delisted is none || delisted == false
@@ -48,7 +48,7 @@ fn list_reminders()! {
 	}
 }
 
-fn exec_args(args []string)! {
+fn exec_args(db_addr string, args []string)! {
 	if args.len == 0 { return error("no arguments provided") }
 
 	match args[0] {
@@ -64,7 +64,7 @@ fn exec_args(args []string)! {
 		}
 
 		"init" {
-			db := sqlite.connect('bubbles.db')!
+			db := sqlite.connect(db_addr)!
 			sql db {
 				create table Reminder
 			}!
@@ -75,7 +75,7 @@ fn exec_args(args []string)! {
 			match args[1] {
 				"reminder" {
 					if args.len < 3 { return error("missing reminder description") }
-					store_reminder(args[2])!
+					store_reminder(db_addr, args[2])!
 				}
 				else { return error("unknown type '${args[1]}' to add") }
 			}
@@ -87,7 +87,7 @@ fn exec_args(args []string)! {
 				"reminder" {
 					if args.len < 3 { return error("missing reminder id") }
 					reminder_id := strconv.atoi(args[2]) or { return error("${args[2]} is not a valid integer") }
-					remove_reminder(reminder_id)!
+					remove_reminder(db_addr, reminder_id)!
 				}
 				else { return error("unknown type '${args[1]}' to remove") }
 			}
@@ -97,7 +97,7 @@ fn exec_args(args []string)! {
 			if args.len < 2 { return error("missing name of type 'reminders' or 'notifications' to list") }
 			match args[1] {
 				"reminders" {
-					list_reminders()!
+					list_reminders(db_addr)!
 				}
 				else { return error("unknown type '${args[1]}' to list") }
 			}
@@ -107,7 +107,8 @@ fn exec_args(args []string)! {
 }
 
 fn main() {
-	exec_args(os.args[1..]) or {
+	db_addr := os.join_path("${os.dir(os.executable())}", "bubbles.db")
+	exec_args(db_addr, os.args[1..]) or {
 		eprintln("something went wrong: ${err}")
 		exit(1)
 	}
