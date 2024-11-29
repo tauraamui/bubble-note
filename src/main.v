@@ -4,6 +4,9 @@ import os
 import time
 import strconv
 import db.sqlite
+import term
+import term.ui
+import rand
 
 @[table: 'reminders']
 struct Reminder {
@@ -43,8 +46,15 @@ fn list_reminders(db_addr string)! {
 		select from Reminder where delisted is none || delisted == false
 	}!
 
+	emoji    := random_emoji()
+	fg_color := random_color()
+	header := "${emoji} Reminders ${emoji}"
+	println(term.bold(term.rgb(fg_color.r, fg_color.g, fg_color.b, header)))
 	for reminder in all_reminders {
-		println("[${reminder.id}] - ${reminder.name}")
+		mut msg := "[${reminder.id}] - ${reminder.name}"
+		msg = term.rgb(fg_color.r, fg_color.g, fg_color.b, msg)
+		// msg = term.slow_blink(msg)
+		println(msg)
 	}
 }
 
@@ -104,6 +114,48 @@ fn exec_args(db_addr string, args []string)! {
 		}
 		else { return error("unknown command '${args[0]}'") }
 	}
+}
+
+const fg_pallette = [
+	ui.Color{ r: 252, g: 186, b: 3 }
+	ui.Color{ r: 232, g: 50, b: 14 }
+	ui.Color{ r: 200, g: 90, b: 100 }
+	ui.Color{ r: 14, g: 232, b: 36 }
+	ui.Color{ r: 19, g: 215, b: 240 }
+]
+
+const emoji_pallette = [
+	"⚠️", "🚨", "🛎️", "👾", "👏", "💥"
+]
+
+fn random_color() ui.Color {
+	return randomly_choose_color(get_date_as_unix(fn () time.Time { return time.now() }))
+}
+
+fn random_emoji() string {
+	return randomly_choose_emoji(get_date_as_unix(fn () time.Time { return time.now() }))
+}
+
+fn randomly_choose_color(seed int) ui.Color {
+	rand.seed([u32(seed), 2485544])
+	index := rand.intn(fg_pallette.len) or { 0 }
+	return fg_pallette[index]
+}
+
+fn randomly_choose_emoji(seed int) string {
+	rand.seed([u32(seed), 33883])
+	index := rand.intn(emoji_pallette.len) or { 0 }
+	return emoji_pallette[index]
+}
+
+fn get_date_as_unix(time_now fn () time.Time) int {
+	now := time_now()
+	date := time.Time{
+		year: now.year
+		month: now.month
+		day: now.day
+	}
+	return int(date.unix())
 }
 
 fn main() {
