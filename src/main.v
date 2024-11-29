@@ -124,10 +124,6 @@ const fg_pallette = [
 	ui.Color{ r: 19, g: 215, b: 240 }
 ]
 
-const emoji_pallette = [
-	"⚠️", "🚨", "🛎️", "👾", "👏", "💥"
-]
-
 fn random_color() ui.Color {
 	return randomly_choose_color(get_date_as_unix(fn () time.Time { return time.now() }))
 }
