@@ -10,7 +10,7 @@ import rand
 
 @[table: 'reminders']
 struct Reminder {
-	id           int @[primary; serial]
+	id           int @[primary; sql: serial]
 	created_time ?time.Time
 	delisted     ?bool
 	name         string
