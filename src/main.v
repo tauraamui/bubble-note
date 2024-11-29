@@ -4,9 +4,29 @@ import os
 import time
 import strconv
 import db.sqlite
+import db.pg
+import orm
 import term
 import term.ui
 import rand
+import json
+
+struct Config {
+pub mut:
+	db_local bool
+	db_host string
+	db_port int
+	db_user string
+	db_pass string
+	db_name string
+}
+
+fn resolve_config() Config {
+	mut cfg := Config{ db_local: true }
+	config_file_content := os.read_file("./bubble.config") or { return cfg }
+	parsed_config := json.decode(Config, config_file_content) or { return cfg }
+	return parsed_config
+}
 
 @[table: 'reminders']
 struct Reminder {
@@ -16,8 +36,25 @@ struct Reminder {
 	name         string
 }
 
-fn store_reminder(db_addr string, name string)! {
-	db := sqlite.connect(db_addr)!
+fn connect_sqlite() !orm.Connection {
+	db := sqlite.connect("bubbles.db")!
+	return orm.Connection(db)
+}
+
+fn connect_postgres(cfg Config) !orm.Connection {
+	return pg.connect(pg.Config{
+		host: "ep-silent-river-a269hxda.eu-central-1.aws.neon.tech"
+		port: 5432
+		user: "notes_owner"
+		password: "NIkSYKGue2z5"
+		dbname: "notes"
+	})!
+}
+
+fn store_reminder(cfg Config, name string)! {
+	db := if cfg.db_local { connect_sqlite()! } else { connect_postgres(cfg)! }
+	// db := sqlite.connect(db_addr)!
+	// db := connect_postgres(db_addr)!
 
 	sql db {
 		create table Reminder
@@ -32,15 +69,21 @@ fn store_reminder(db_addr string, name string)! {
 	println("stored reminder \"${name}\"")
 }
 
-fn remove_reminder(db_addr string, id int)! {
-	db := sqlite.connect(db_addr)!
+fn remove_reminder(cfg Config, id int)! {
+	db := if cfg.db_local { connect_sqlite()! } else { connect_postgres(cfg)! }
+	// db := sqlite.connect(db_addr)!
+	// db := connect_postgres(db_addr)!
+	// db := sqlite.connect(db_addr)!
 	sql db {
 		update Reminder set delisted = true where id == id
 	}!
 }
 
-fn list_reminders(db_addr string)! {
-	db := sqlite.connect(db_addr)!
+fn list_reminders(cfg Config)! {
+	db := if cfg.db_local { connect_sqlite()! } else { connect_postgres(cfg)! }
+	// db := sqlite.connect(db_addr)!
+	// db := connect_postgres(db_addr)!
+	// db := sqlite.connect(db_addr)!
 
 	all_reminders := sql db {
 		select from Reminder where delisted is none || delisted == false
@@ -74,40 +117,48 @@ fn exec_args(db_addr string, args []string)! {
 		}
 
 		"init" {
-			db := sqlite.connect(db_addr)!
+			cfg := resolve_config()
+			db := if cfg.db_local { connect_sqlite()! } else { connect_postgres(cfg)! }
+			location := if cfg.db_local { "bubbles.db" } else { cfg.db_host }
+			println("setting up db @ ${location}")
+			// db := sqlite.connect(db_addr)!
+			// db := connect_postgres(db_addr)!
 			sql db {
 				create table Reminder
 			}!
 		}
 
 		"add" {
+			cfg := resolve_config()
 			if args.len < 2 { return error("missing name of type 'reminder' to add") }
 			match args[1] {
 				"reminder" {
 					if args.len < 3 { return error("missing reminder description") }
-					store_reminder(db_addr, args[2])!
+					store_reminder(cfg, args[2])!
 				}
 				else { return error("unknown type '${args[1]}' to add") }
 			}
 		}
 
 		"remove" {
+			cfg := resolve_config()
 			if args.len < 2 { return error("missing name of type 'reminder' to remove") }
 			match args[1] {
 				"reminder" {
 					if args.len < 3 { return error("missing reminder id") }
 					reminder_id := strconv.atoi(args[2]) or { return error("${args[2]} is not a valid integer") }
-					remove_reminder(db_addr, reminder_id)!
+					remove_reminder(cfg, reminder_id)!
 				}
 				else { return error("unknown type '${args[1]}' to remove") }
 			}
 		}
 
 		"list" {
+			cfg := resolve_config()
 			if args.len < 2 { return error("missing name of type 'reminders' or 'notifications' to list") }
 			match args[1] {
 				"reminders" {
-					list_reminders(db_addr)!
+					list_reminders(cfg)!
 				}
 				else { return error("unknown type '${args[1]}' to list") }
 			}
