@@ -14,16 +14,18 @@ import json
 struct Config {
 pub mut:
 	db_local bool
-	db_host string
-	db_port int
-	db_user string
-	db_pass string
-	db_name string
+	db_host string @[json: "host"]
+	db_port int @[json: "port"]
+	db_user string @[json: "user"]
+	db_pass string @[json: "password"]
+	db_name string @[json: "dbname"]
 }
 
-fn resolve_config() Config {
+fn resolve_config() !Config {
 	mut cfg := Config{ db_local: true }
-	config_file_content := os.read_file("./bubble.config") or { return cfg }
+	cfg_dir := os.config_dir()!
+	cfg_file_path := os.join_path(cfg_dir, "bubble-note", "bubble.config")
+	config_file_content := os.read_file(cfg_file_path) or { return cfg }
 	parsed_config := json.decode(Config, config_file_content) or { return cfg }
 	return parsed_config
 }
@@ -42,12 +44,13 @@ fn connect_sqlite() !orm.Connection {
 }
 
 fn connect_postgres(cfg Config) !orm.Connection {
+	// return pg.connect_with_conninfo("host=${cfg.db_host} port=${cfg.db_port} user=${cfg.db_user} password=${cfg.db_pass} dbname=${cfg.db_name} sslmode=require")
 	return pg.connect(pg.Config{
-		host: "ep-silent-river-a269hxda.eu-central-1.aws.neon.tech"
-		port: 5432
-		user: "notes_owner"
-		password: "NIkSYKGue2z5"
-		dbname: "notes"
+		host: cfg.db_host
+		port: cfg.db_port
+		user: cfg.db_user
+		password: cfg.db_pass
+		dbname: cfg.db_name
 	})!
 }
 
@@ -117,7 +120,7 @@ fn exec_args(db_addr string, args []string)! {
 		}
 
 		"init" {
-			cfg := resolve_config()
+			cfg := resolve_config()!
 			db := if cfg.db_local { connect_sqlite()! } else { connect_postgres(cfg)! }
 			location := if cfg.db_local { "bubbles.db" } else { cfg.db_host }
 			println("setting up db @ ${location}")
@@ -129,7 +132,7 @@ fn exec_args(db_addr string, args []string)! {
 		}
 
 		"add" {
-			cfg := resolve_config()
+			cfg := resolve_config()!
 			if args.len < 2 { return error("missing name of type 'reminder' to add") }
 			match args[1] {
 				"reminder" {
@@ -141,7 +144,7 @@ fn exec_args(db_addr string, args []string)! {
 		}
 
 		"remove" {
-			cfg := resolve_config()
+			cfg := resolve_config()!
 			if args.len < 2 { return error("missing name of type 'reminder' to remove") }
 			match args[1] {
 				"reminder" {
@@ -154,7 +157,7 @@ fn exec_args(db_addr string, args []string)! {
 		}
 
 		"list" {
-			cfg := resolve_config()
+			cfg := resolve_config()!
 			if args.len < 2 { return error("missing name of type 'reminders' or 'notifications' to list") }
 			match args[1] {
 				"reminders" {
