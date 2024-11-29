@@ -14,16 +14,18 @@ import json
 struct Config {
 pub mut:
 	db_local bool
-	db_host string
-	db_port int
-	db_user string
-	db_pass string
-	db_name string
+	db_host string @[json: "host"]
+	db_port int @[json: "port"]
+	db_user string @[json: "user"]
+	db_pass string @[json: "password"]
+	db_name string @[json: "dbname"]
 }
 
-fn resolve_config() Config {
+fn resolve_config() !Config {
 	mut cfg := Config{ db_local: true }
-	config_file_content := os.read_file("./bubble.config") or { return cfg }
+	cfg_dir := os.config_dir()!
+	cfg_file_path := os.join_path(cfg_dir, "bubble-note", "bubble.config")
+	config_file_content := os.read_file(cfg_file_path) or { return cfg }
 	parsed_config := json.decode(Config, config_file_content) or { return cfg }
 	return parsed_config
 }
@@ -36,30 +38,32 @@ struct Reminder {
 	name         string
 }
 
-fn local_db_path() !string {
-	local_db_parent_dir := os.join_path(os.data_dir(), "bubble-note")
-	os.mkdir(local_db_parent_dir) or {}
-	return os.join_path(local_db_parent_dir, "bubble.db")
+fn resolve_local_db_path() string {
+	db_file_name := "bubbles.db"
+	data_dir := os.data_dir()
+	data_bubble_dir := os.join_path(data_dir, "bubble-note")
+	os.mkdir(data_bubble_dir) or {}
+	return os.join_path(data_bubble_dir, db_file_name)
 }
 
-fn connect_sqlite() !orm.Connection {
-	db_path := local_db_path()!
-	db := sqlite.connect(db_path)!
+fn connect_sqlite(path string) !orm.Connection {
+	db := sqlite.connect(path)!
 	return orm.Connection(db)
 }
 
 fn connect_postgres(cfg Config) !orm.Connection {
+	// return pg.connect_with_conninfo("host=${cfg.db_host} port=${cfg.db_port} user=${cfg.db_user} password=${cfg.db_pass} dbname=${cfg.db_name} sslmode=require")
 	return pg.connect(pg.Config{
-		host: "ep-silent-river-a269hxda.eu-central-1.aws.neon.tech"
-		port: 5432
-		user: "notes_owner"
-		password: "NIkSYKGue2z5"
-		dbname: "notes"
+		host: cfg.db_host
+		port: cfg.db_port
+		user: cfg.db_user
+		password: cfg.db_pass
+		dbname: cfg.db_name
 	})!
 }
 
 fn store_reminder(cfg Config, name string)! {
-	db := if cfg.db_local { connect_sqlite()! } else { connect_postgres(cfg)! }
+	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
 	// db := sqlite.connect(db_addr)!
 	// db := connect_postgres(db_addr)!
 
@@ -77,7 +81,7 @@ fn store_reminder(cfg Config, name string)! {
 }
 
 fn remove_reminder(cfg Config, id int)! {
-	db := if cfg.db_local { connect_sqlite()! } else { connect_postgres(cfg)! }
+	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
 	// db := sqlite.connect(db_addr)!
 	// db := connect_postgres(db_addr)!
 	// db := sqlite.connect(db_addr)!
@@ -87,7 +91,7 @@ fn remove_reminder(cfg Config, id int)! {
 }
 
 fn list_reminders(cfg Config)! {
-	db := if cfg.db_local { connect_sqlite()! } else { connect_postgres(cfg)! }
+	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
 	// db := sqlite.connect(db_addr)!
 	// db := connect_postgres(db_addr)!
 	// db := sqlite.connect(db_addr)!
@@ -125,8 +129,8 @@ fn exec_args(db_addr string, args []string)! {
 
 		"init" {
 			cfg := resolve_config()!
-			db := if cfg.db_local { connect_sqlite()! } else { connect_postgres(cfg)! }
-			location := if cfg.db_local { local_db_path()! } else { cfg.db_host }
+			db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
+			location := if cfg.db_local { resolve_local_db_path() } else { cfg.db_host }
 			println("setting up db @ ${location}")
 			// db := sqlite.connect(db_addr)!
 			// db := connect_postgres(db_addr)!
