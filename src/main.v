@@ -38,8 +38,16 @@ struct Reminder {
 	name         string
 }
 
-fn connect_sqlite() !orm.Connection {
-	db := sqlite.connect("bubbles.db")!
+fn resolve_local_db_path() string {
+	db_file_name := "bubbles.db"
+	data_dir := os.data_dir()
+	data_bubble_dir := os.join_path(data_dir, "bubble-note")
+	os.mkdir(data_bubble_dir) or {}
+	return os.join_path(data_bubble_dir, db_file_name)
+}
+
+fn connect_sqlite(path string) !orm.Connection {
+	db := sqlite.connect(path)!
 	return orm.Connection(db)
 }
 
@@ -55,7 +63,7 @@ fn connect_postgres(cfg Config) !orm.Connection {
 }
 
 fn store_reminder(cfg Config, name string)! {
-	db := if cfg.db_local { connect_sqlite()! } else { connect_postgres(cfg)! }
+	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
 	// db := sqlite.connect(db_addr)!
 	// db := connect_postgres(db_addr)!
 
@@ -73,7 +81,7 @@ fn store_reminder(cfg Config, name string)! {
 }
 
 fn remove_reminder(cfg Config, id int)! {
-	db := if cfg.db_local { connect_sqlite()! } else { connect_postgres(cfg)! }
+	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
 	// db := sqlite.connect(db_addr)!
 	// db := connect_postgres(db_addr)!
 	// db := sqlite.connect(db_addr)!
@@ -83,7 +91,7 @@ fn remove_reminder(cfg Config, id int)! {
 }
 
 fn list_reminders(cfg Config)! {
-	db := if cfg.db_local { connect_sqlite()! } else { connect_postgres(cfg)! }
+	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
 	// db := sqlite.connect(db_addr)!
 	// db := connect_postgres(db_addr)!
 	// db := sqlite.connect(db_addr)!
@@ -121,8 +129,8 @@ fn exec_args(db_addr string, args []string)! {
 
 		"init" {
 			cfg := resolve_config()!
-			db := if cfg.db_local { connect_sqlite()! } else { connect_postgres(cfg)! }
-			location := if cfg.db_local { "bubbles.db" } else { cfg.db_host }
+			db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
+			location := if cfg.db_local { resolve_local_db_path() } else { cfg.db_host }
 			println("setting up db @ ${location}")
 			// db := sqlite.connect(db_addr)!
 			// db := connect_postgres(db_addr)!
