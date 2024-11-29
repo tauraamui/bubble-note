@@ -16,8 +16,32 @@ struct Reminder {
 	name         string
 }
 
-fn store_reminder(db_addr string, name string)! {
-	db := sqlite.connect(db_addr)!
+fn local_db_path() !string {
+	local_db_parent_dir := os.join_path(os.data_dir(), "bubble-note")
+	os.mkdir(local_db_parent_dir) or {}
+	return os.join_path(local_db_parent_dir, "bubble.db")
+}
+
+fn connect_sqlite() !orm.Connection {
+	db_path := local_db_path()!
+	db := sqlite.connect(db_path)!
+	return orm.Connection(db)
+}
+
+fn connect_postgres(cfg Config) !orm.Connection {
+	return pg.connect(pg.Config{
+		host: "ep-silent-river-a269hxda.eu-central-1.aws.neon.tech"
+		port: 5432
+		user: "notes_owner"
+		password: "NIkSYKGue2z5"
+		dbname: "notes"
+	})!
+}
+
+fn store_reminder(cfg Config, name string)! {
+	db := if cfg.db_local { connect_sqlite()! } else { connect_postgres(cfg)! }
+	// db := sqlite.connect(db_addr)!
+	// db := connect_postgres(db_addr)!
 
 	sql db {
 		create table Reminder
@@ -74,13 +98,19 @@ fn exec_args(db_addr string, args []string)! {
 		}
 
 		"init" {
-			db := sqlite.connect(db_addr)!
+			cfg := resolve_config()!
+			db := if cfg.db_local { connect_sqlite()! } else { connect_postgres(cfg)! }
+			location := if cfg.db_local { local_db_path()! } else { cfg.db_host }
+			println("setting up db @ ${location}")
+			// db := sqlite.connect(db_addr)!
+			// db := connect_postgres(db_addr)!
 			sql db {
 				create table Reminder
 			}!
 		}
 
 		"add" {
+			cfg := resolve_config()!
 			if args.len < 2 { return error("missing name of type 'reminder' to add") }
 			match args[1] {
 				"reminder" {
@@ -92,6 +122,7 @@ fn exec_args(db_addr string, args []string)! {
 		}
 
 		"remove" {
+			cfg := resolve_config()!
 			if args.len < 2 { return error("missing name of type 'reminder' to remove") }
 			match args[1] {
 				"reminder" {
@@ -104,6 +135,7 @@ fn exec_args(db_addr string, args []string)! {
 		}
 
 		"list" {
+			cfg := resolve_config()!
 			if args.len < 2 { return error("missing name of type 'reminders' or 'notifications' to list") }
 			match args[1] {
 				"reminders" {
