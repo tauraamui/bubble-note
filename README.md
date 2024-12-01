@@ -7,6 +7,9 @@ is shown each time I open a new shell. The foreground colour of the text and the
 phasing it out of existence (I can't use postinotes or signs to remind me things I eventually look right through them).
 
 ![Screenshot 2024-11-29 17 09 07](https://github.com/user-attachments/assets/ded607c5-32bb-4fc6-a4a4-ff59428e3389)
+_________________
+![Screenshot 2024-12-01 17 53 38](https://github.com/user-attachments/assets/a145c59f-b92b-4958-baf4-ae4086cb6e18)
+
 
 ### Example usage:
 
