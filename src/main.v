@@ -10,6 +10,7 @@ import term
 import term.ui
 import rand
 import json
+import lib.ansii
 
 struct Config {
 pub mut:
@@ -139,6 +140,19 @@ fn exec_args(db_addr string, args []string)! {
 			}!
 		}
 
+		"rgb2ansii" {
+			if args.len < 2 { return error("missing rgb to convert to ansii") }
+			rgb_arg_split := args[1].split(",")
+			if rgb_arg_split.len < 3 { return error("expected R,G,B values, got ${args[1]} instead") }
+			color := ansii.Color.new(rgb_arg_split[0], rgb_arg_split[1], rgb_arg_split[2]) or {
+				return error("failed to convert RGB into color: ${err}")
+			}
+			ansi_color := ansii.rgb2ansi(color)
+			print('\x1b[38;5;${ansi_color}m')
+			print(ansi_color)
+			print('\x1b[49m\n')
+		}
+
 		"add" {
 			cfg := resolve_config()!
 			if args.len < 2 { return error("missing name of type 'reminder' to add") }
@@ -184,6 +198,9 @@ const fg_pallette = [
 	ui.Color{ r: 200, g: 90, b: 100 }
 	ui.Color{ r: 14, g: 232, b: 36 }
 	ui.Color{ r: 19, g: 215, b: 240 }
+	ui.Color{ r: 242, g: 58, b: 218 }
+	ui.Color{ r: 41, g: 255, b: 134 }
+	ui.Color{ r: 227, g: 145, b: 91 }
 ]
 
 fn random_color() ui.Color {
@@ -195,7 +212,7 @@ fn random_emoji() string {
 }
 
 fn randomly_choose_color(seed int) ui.Color {
-	rand.seed([u32(seed), 2485544])
+	rand.seed([u32(seed), 111333])
 	index := rand.intn(fg_pallette.len) or { 0 }
 	return fg_pallette[index]
 }
