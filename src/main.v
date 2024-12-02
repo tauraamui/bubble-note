@@ -113,80 +113,104 @@ fn list_reminders(cfg Config)! {
 	}
 }
 
+fn symlink_cmd(args []string)! {
+	link_path := os.expand_tilde_to_home("~/bin/bn")
+	me := os.executable()
+	println("attempting to symlink '${me}'")
+	os.rm(link_path) or {}
+	os.symlink(me, link_path) or {
+		return error("failed to symlink to ${link_path}: ${err}")
+	}
+	println("successfully symlinked to ${link_path}")
+}
+
+fn init_cmd(args []string)! {
+	cfg := resolve_config()!
+	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
+	location := if cfg.db_local { resolve_local_db_path() } else { cfg.db_host }
+	println("setting up db @ ${location}")
+	// db := sqlite.connect(db_addr)!
+	// db := connect_postgres(db_addr)!
+	sql db {
+		create table Reminder
+	}!
+}
+
+fn rgb2ansi_cmd(args []string)! {
+	if args.len < 2 { return error("missing rgb to convert to ansii") }
+	rgb_arg_split := args[1].split(",")
+	if rgb_arg_split.len < 3 { return error("expected R,G,B values, got ${args[1]} instead") }
+	color := ansii.Color.new(rgb_arg_split[0], rgb_arg_split[1], rgb_arg_split[2]) or {
+		return error("failed to convert RGB into color: ${err}")
+	}
+	ansi_color := ansii.rgb2ansi(color)
+	print('\x1b[38;5;${ansi_color}m')
+	print(ansi_color)
+	print('\x1b[49m\n')
+}
+
+fn add_cmd(args []string)! {
+	cfg := resolve_config()!
+	if args.len < 2 { return error("missing name of type 'reminder' to add") }
+	match args[1] {
+		"reminder" {
+			if args.len < 3 { return error("missing reminder description") }
+			store_reminder(cfg, args[2])!
+		}
+		else { return error("unknown type '${args[1]}' to add") }
+	}
+}
+
+fn remove_cmd(args []string)! {
+	cfg := resolve_config()!
+	if args.len < 2 { return error("missing name of type 'reminder' to remove") }
+	match args[1] {
+		"reminder" {
+			if args.len < 3 { return error("missing reminder id") }
+			reminder_id := strconv.atoi(args[2]) or { return error("${args[2]} is not a valid integer") }
+			remove_reminder(cfg, reminder_id)!
+		}
+		else { return error("unknown type '${args[1]}' to remove") }
+	}
+}
+
+fn list_cmd(args []string)! {
+	cfg := resolve_config()!
+	if args.len < 2 { return error("missing name of type 'reminders' or 'notifications' to list") }
+	match args[1] {
+		"reminders" {
+			list_reminders(cfg)!
+		}
+		else { return error("unknown type '${args[1]}' to list") }
+	}
+}
+
 fn exec_args(db_addr string, args []string)! {
 	if args.len == 0 { return error("no arguments provided") }
 
 	match args[0] {
 		"symlink" {
-			link_path := os.expand_tilde_to_home("~/bin/bn")
-			me := os.executable()
-			println("attempting to symlink '${me}'")
-			os.rm(link_path) or {}
-			os.symlink(me, link_path) or {
-				return error("failed to symlink to ${link_path}: ${err}")
-			}
-			println("successfully symlinked to ${link_path}")
+			symlink_cmd(args)!
 		}
 
 		"init" {
-			cfg := resolve_config()!
-			db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
-			location := if cfg.db_local { resolve_local_db_path() } else { cfg.db_host }
-			println("setting up db @ ${location}")
-			// db := sqlite.connect(db_addr)!
-			// db := connect_postgres(db_addr)!
-			sql db {
-				create table Reminder
-			}!
+			init_cmd(args)!
 		}
 
 		"rgb2ansii" {
-			if args.len < 2 { return error("missing rgb to convert to ansii") }
-			rgb_arg_split := args[1].split(",")
-			if rgb_arg_split.len < 3 { return error("expected R,G,B values, got ${args[1]} instead") }
-			color := ansii.Color.new(rgb_arg_split[0], rgb_arg_split[1], rgb_arg_split[2]) or {
-				return error("failed to convert RGB into color: ${err}")
-			}
-			ansi_color := ansii.rgb2ansi(color)
-			print('\x1b[38;5;${ansi_color}m')
-			print(ansi_color)
-			print('\x1b[49m\n')
+			rgb2ansi_cmd(args)!
 		}
 
 		"add" {
-			cfg := resolve_config()!
-			if args.len < 2 { return error("missing name of type 'reminder' to add") }
-			match args[1] {
-				"reminder" {
-					if args.len < 3 { return error("missing reminder description") }
-					store_reminder(cfg, args[2])!
-				}
-				else { return error("unknown type '${args[1]}' to add") }
-			}
+			add_cmd(args)!
 		}
 
 		"remove" {
-			cfg := resolve_config()!
-			if args.len < 2 { return error("missing name of type 'reminder' to remove") }
-			match args[1] {
-				"reminder" {
-					if args.len < 3 { return error("missing reminder id") }
-					reminder_id := strconv.atoi(args[2]) or { return error("${args[2]} is not a valid integer") }
-					remove_reminder(cfg, reminder_id)!
-				}
-				else { return error("unknown type '${args[1]}' to remove") }
-			}
+			remove_cmd(args)!
 		}
 
 		"list" {
-			cfg := resolve_config()!
-			if args.len < 2 { return error("missing name of type 'reminders' or 'notifications' to list") }
-			match args[1] {
-				"reminders" {
-					list_reminders(cfg)!
-				}
-				else { return error("unknown type '${args[1]}' to list") }
-			}
+			list_cmd(args)!
 		}
 		else { return error("unknown command '${args[0]}'") }
 	}
