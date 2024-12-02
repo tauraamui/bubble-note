@@ -1,0 +1,16 @@
+
+task:compile = {
+	help = 'Compile the entire website into a single binary'
+	run = 'v ./src -o bubble-note -prod'
+}
+
+task:run = {
+	help = 'Run bubble'
+	run = 'v -g run ./src'
+}
+
+task:test = {
+	help = "Run all the tests"
+	run = "v test ."
+}
+
