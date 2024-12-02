@@ -53,7 +53,6 @@ fn connect_sqlite(path string) !orm.Connection {
 }
 
 fn connect_postgres(cfg Config) !orm.Connection {
-	// return pg.connect_with_conninfo("host=${cfg.db_host} port=${cfg.db_port} user=${cfg.db_user} password=${cfg.db_pass} dbname=${cfg.db_name} sslmode=require")
 	return pg.connect(pg.Config{
 		host: cfg.db_host
 		port: cfg.db_port
@@ -65,9 +64,6 @@ fn connect_postgres(cfg Config) !orm.Connection {
 
 fn store_reminder(cfg Config, name string)! {
 	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
-	// db := sqlite.connect(db_addr)!
-	// db := connect_postgres(db_addr)!
-
 	sql db {
 		create table Reminder
 	}!
@@ -83,9 +79,6 @@ fn store_reminder(cfg Config, name string)! {
 
 fn remove_reminder(cfg Config, id int)! {
 	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
-	// db := sqlite.connect(db_addr)!
-	// db := connect_postgres(db_addr)!
-	// db := sqlite.connect(db_addr)!
 	sql db {
 		update Reminder set delisted = true where id == id
 	}!
@@ -93,10 +86,6 @@ fn remove_reminder(cfg Config, id int)! {
 
 fn list_reminders(cfg Config)! {
 	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
-	// db := sqlite.connect(db_addr)!
-	// db := connect_postgres(db_addr)!
-	// db := sqlite.connect(db_addr)!
-
 	all_reminders := sql db {
 		select from Reminder where delisted is none || delisted == false
 	}!
@@ -129,8 +118,6 @@ fn init_cmd(args []string)! {
 	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
 	location := if cfg.db_local { resolve_local_db_path() } else { cfg.db_host }
 	println("setting up db @ ${location}")
-	// db := sqlite.connect(db_addr)!
-	// db := connect_postgres(db_addr)!
 	sql db {
 		create table Reminder
 	}!
