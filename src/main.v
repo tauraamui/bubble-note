@@ -34,6 +34,7 @@ fn resolve_config() !Config {
 @[table: 'reminders']
 struct Reminder {
 	id           int @[primary; sql: serial]
+	uuid         string
 	created_time ?time.Time
 	delisted     ?bool
 	name         string
@@ -53,26 +54,24 @@ fn connect_sqlite(path string) !orm.Connection {
 }
 
 fn connect_postgres(cfg Config) !orm.Connection {
-	// return pg.connect_with_conninfo("host=${cfg.db_host} port=${cfg.db_port} user=${cfg.db_user} password=${cfg.db_pass} dbname=${cfg.db_name} sslmode=require")
-	return pg.connect(pg.Config{
+	db := pg.connect(pg.Config{
 		host: cfg.db_host
 		port: cfg.db_port
 		user: cfg.db_user
 		password: cfg.db_pass
 		dbname: cfg.db_name
 	})!
+	return db
 }
 
 fn store_reminder(cfg Config, name string)! {
 	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
-	// db := sqlite.connect(db_addr)!
-	// db := connect_postgres(db_addr)!
 
 	sql db {
 		create table Reminder
 	}!
 
-	new_reminder := Reminder{ name: name created_time: time.now() }
+	new_reminder := Reminder{ uuid: rand.uuid_v4(), name: name created_time: time.now() }
 
 	sql db {
 		insert new_reminder into Reminder
@@ -83,9 +82,6 @@ fn store_reminder(cfg Config, name string)! {
 
 fn remove_reminder(cfg Config, id int)! {
 	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
-	// db := sqlite.connect(db_addr)!
-	// db := connect_postgres(db_addr)!
-	// db := sqlite.connect(db_addr)!
 	sql db {
 		update Reminder set delisted = true where id == id
 	}!
@@ -93,9 +89,6 @@ fn remove_reminder(cfg Config, id int)! {
 
 fn list_reminders(cfg Config)! {
 	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
-	// db := sqlite.connect(db_addr)!
-	// db := connect_postgres(db_addr)!
-	// db := sqlite.connect(db_addr)!
 
 	all_reminders := sql db {
 		select from Reminder where delisted is none || delisted == false
@@ -106,9 +99,8 @@ fn list_reminders(cfg Config)! {
 	header := "${emoji} Reminders ${emoji}"
 	println(term.bold(term.rgb(fg_color.r, fg_color.g, fg_color.b, header)))
 	for reminder in all_reminders {
-		mut msg := "[${reminder.id}] - ${reminder.name}"
+		mut msg := "[${reminder.id}]/(${reminder.uuid}) - ${reminder.name}"
 		msg = term.rgb(fg_color.r, fg_color.g, fg_color.b, msg)
-		// msg = term.slow_blink(msg)
 		println(msg)
 	}
 }
