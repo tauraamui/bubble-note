@@ -71,7 +71,7 @@ fn store_reminder(cfg Config, name string)! {
 		create table Reminder
 	}!
 
-	new_reminder := Reminder{ uuid: rand.uuid_v4(), name: name created_time: time.now() }
+	new_reminder := Reminder{ uuid: rand.ulid(), name: name created_time: time.now() }
 
 	sql db {
 		insert new_reminder into Reminder
@@ -103,6 +103,26 @@ fn list_reminders(cfg Config)! {
 		msg = term.rgb(fg_color.r, fg_color.g, fg_color.b, msg)
 		println(msg)
 	}
+}
+
+fn wipe_reminders(cfg Config)! {
+	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
+
+	confirm := os.input("Confirm (Y/N): ")
+	mut confirmed := false
+	match confirm {
+		"N"  { return }
+		"n"  { return }
+		"Y"  { confirmed = true }
+		"y"  { confirmed = true }
+		else { return }
+	}
+
+	if !confirmed { return }
+
+	sql db {
+		delete from Reminder where id != 0
+	}!
 }
 
 fn symlink_cmd(args []string)! {
@@ -175,6 +195,17 @@ fn list_cmd(args []string)! {
 	}
 }
 
+fn wipe_cmd(args []string)! {
+	cfg := resolve_config()!
+	if args.len < 2 { return error("missing name of type 'reminders' or 'notifications' to list") }
+	match args[1] {
+		"reminders" {
+			wipe_reminders(cfg)!
+		}
+		else { return error("unknown type '${args[1]}' to list") }
+	}
+}
+
 fn exec_args(db_addr string, args []string)! {
 	if args.len == 0 { return error("no arguments provided") }
 
@@ -201,6 +232,10 @@ fn exec_args(db_addr string, args []string)! {
 
 		"list" {
 			list_cmd(args)!
+		}
+
+		"wipe" {
+			wipe_cmd(args)!
 		}
 		else { return error("unknown command '${args[0]}'") }
 	}
