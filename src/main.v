@@ -89,6 +89,15 @@ fn remove_reminder_id(cfg Config, id int)! {
 	}!
 }
 
+fn remove_reminder_ulid(cfg Config, ulid string)! {
+	// db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
+	db := connect_sqlite(resolve_local_db_path())!
+	ulid_pattern := "%${ulid.to_upper_ascii()}"
+	sql db {
+		update Reminder set delisted = true where (delisted is none || delisted == false) && uuid like "${ulid_pattern}"
+	}!
+}
+
 fn list_reminders(cfg Config)! {
 	// db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
 	db := connect_sqlite(resolve_local_db_path())!
@@ -181,10 +190,15 @@ fn remove_cmd(args []string)! {
 	cfg := resolve_config()!
 	if args.len < 2 { return error("missing name of type 'reminder' to remove") }
 	match args[1] {
-		"reminder" {
+		"reminder-id" {
 			if args.len < 3 { return error("missing reminder id") }
 			reminder_id := strconv.atoi(args[2]) or { return error("${args[2]} is not a valid integer") }
 			remove_reminder_id(cfg, reminder_id)!
+		}
+		"reminder" {
+			if args.len < 3 { return error("missing reminder id") }
+			reminder_ulid := args[2]
+			remove_reminder_ulid(cfg, reminder_ulid)!
 		}
 		else { return error("unknown type '${args[1]}' to remove") }
 	}
