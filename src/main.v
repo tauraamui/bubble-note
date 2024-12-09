@@ -33,11 +33,11 @@ fn resolve_config() !Config {
 
 @[table: 'reminders']
 struct Reminder {
-	id           int @[primary; sql: serial]
-	uuid         string
-	created_time ?time.Time
-	delisted     ?bool
-	name         string
+	id            int @[primary; sql: serial]
+	uuid          string
+	created_time  ?time.Time
+	delisted      ?bool
+	name          string
 }
 
 fn resolve_local_db_path() string {
@@ -64,15 +64,15 @@ fn connect_postgres(cfg Config) !orm.Connection {
 	return db
 }
 
-fn store_reminder(cfg Config, name string)! {
+fn store_reminder(cfg Config, db orm.Connection, uuid fn () string, name string)! {
 	// db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
-	db := connect_sqlite(resolve_local_db_path())!
+	// db := connect_sqlite(resolve_local_db_path())!
 
 	sql db {
 		create table Reminder
 	}!
 
-	new_reminder := Reminder{ uuid: rand.ulid(), name: name created_time: time.now() }
+	new_reminder := Reminder{ uuid: uuid(), name: name created_time: time.now() }
 
 	sql db {
 		insert new_reminder into Reminder
@@ -81,9 +81,52 @@ fn store_reminder(cfg Config, name string)! {
 	println("stored reminder \"${name}\"")
 }
 
-fn remove_reminder_id(cfg Config, id int)! {
+fn sync_to_remote(cfg Config)! {
+	local_db  := connect_sqlite(resolve_local_db_path())!
+	remote_db := connect_postgres(cfg)!
+
+	local_reminders := sql local_db {
+		select from Reminder
+	}!
+
+	remote_reminders := sql remote_db {
+		select from Reminder
+	}!
+
+	local_uuids  := local_reminders.map(it.uuid)
+	remote_uuids := remote_reminders.map(it.uuid)
+
+	shared_reminders := local_reminders.filter(remote_uuids.contains(it.uuid))
+	for reminder in shared_reminders {
+		remote_reminder := remote_reminders[remote_uuids.index(reminder.uuid)]
+		local_delisted := reminder.delisted or { false }
+		remote_delisted := remote_reminder.delisted or { false }
+
+		if local_delisted == remote_delisted { continue }
+
+		if local_delisted {
+			remove_reminder_id(cfg, remote_db, reminder.id)!
+			continue
+		}
+
+		if remote_delisted {
+			remove_reminder_id(cfg, local_db, reminder.id)!
+			continue
+		}
+	}
+
+	for reminder in local_reminders.filter(!remote_uuids.contains(it.uuid)) {
+		store_reminder(cfg, remote_db, fn [reminder] () string { return reminder.uuid }, reminder.name)!
+	}
+
+	for reminder in remote_reminders.filter(!local_uuids.contains(it.uuid)) {
+		store_reminder(cfg, local_db, fn [reminder] () string { return reminder.uuid }, reminder.name )!
+	}
+}
+
+fn remove_reminder_id(cfg Config, db orm.Connection, id int)! {
 	// db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
-	db := connect_sqlite(resolve_local_db_path())!
+	// db := connect_sqlite(resolve_local_db_path())!
 	sql db {
 		update Reminder set delisted = true where id == id
 	}!
@@ -115,6 +158,10 @@ fn list_reminders(cfg Config)! {
 		msg = term.rgb(fg_color.r, fg_color.g, fg_color.b, msg)
 		println(msg)
 	}
+}
+
+fn sync_reminders(cfg Config)! {
+	sync_to_remote(cfg)!
 }
 
 fn wipe_reminders(cfg Config)! {
@@ -180,7 +227,8 @@ fn add_cmd(args []string)! {
 	match args[1] {
 		"reminder" {
 			if args.len < 3 { return error("missing reminder description") }
-			store_reminder(cfg, args[2])!
+			db := connect_sqlite(resolve_local_db_path())!
+			store_reminder(cfg, db, rand.ulid, args[2])!
 		}
 		else { return error("unknown type '${args[1]}' to add") }
 	}
@@ -193,7 +241,8 @@ fn remove_cmd(args []string)! {
 		"reminder-id" {
 			if args.len < 3 { return error("missing reminder id") }
 			reminder_id := strconv.atoi(args[2]) or { return error("${args[2]} is not a valid integer") }
-			remove_reminder_id(cfg, reminder_id)!
+			db := connect_sqlite(resolve_local_db_path())!
+			remove_reminder_id(cfg, db, reminder_id)!
 		}
 		"reminder" {
 			if args.len < 3 { return error("missing reminder id") }
@@ -210,6 +259,17 @@ fn list_cmd(args []string)! {
 	match args[1] {
 		"reminders" {
 			list_reminders(cfg)!
+		}
+		else { return error("unknown type '${args[1]}' to list") }
+	}
+}
+
+fn sync_cmd(args []string)! {
+	cfg := resolve_config()!
+	if args.len < 2 { return error("missing name of type 'reminders' or 'notifications' to list") }
+	match args[1] {
+		"reminders" {
+			sync_reminders(cfg)!
 		}
 		else { return error("unknown type '${args[1]}' to list") }
 	}
@@ -252,6 +312,10 @@ fn exec_args(db_addr string, args []string)! {
 
 		"list" {
 			list_cmd(args)!
+		}
+
+		"sync" {
+			sync_cmd(args)!
 		}
 
 		"wipe" {
