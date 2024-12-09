@@ -65,7 +65,8 @@ fn connect_postgres(cfg Config) !orm.Connection {
 }
 
 fn store_reminder(cfg Config, name string)! {
-	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
+	// db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
+	db := connect_sqlite(resolve_local_db_path())!
 
 	sql db {
 		create table Reminder
@@ -80,15 +81,26 @@ fn store_reminder(cfg Config, name string)! {
 	println("stored reminder \"${name}\"")
 }
 
-fn remove_reminder(cfg Config, id int)! {
-	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
+fn remove_reminder_id(cfg Config, id int)! {
+	// db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
+	db := connect_sqlite(resolve_local_db_path())!
 	sql db {
 		update Reminder set delisted = true where id == id
 	}!
 }
 
+fn remove_reminder_ulid(cfg Config, ulid string)! {
+	// db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
+	db := connect_sqlite(resolve_local_db_path())!
+	ulid_pattern := "%${ulid.to_upper_ascii()}"
+	sql db {
+		update Reminder set delisted = true where (delisted is none || delisted == false) && uuid like "${ulid_pattern}"
+	}!
+}
+
 fn list_reminders(cfg Config)! {
-	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
+	// db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
+	db := connect_sqlite(resolve_local_db_path())!
 
 	all_reminders := sql db {
 		select from Reminder where delisted is none || delisted == false
@@ -99,14 +111,15 @@ fn list_reminders(cfg Config)! {
 	header := "${emoji} Reminders ${emoji}"
 	println(term.bold(term.rgb(fg_color.r, fg_color.g, fg_color.b, header)))
 	for reminder in all_reminders {
-		mut msg := "[${reminder.id}]/(${reminder.uuid}) - ${reminder.name}"
+		mut msg := "[${reminder.id}]/(${reminder.uuid[reminder.uuid.len - 5..]}) - ${reminder.name}"
 		msg = term.rgb(fg_color.r, fg_color.g, fg_color.b, msg)
 		println(msg)
 	}
 }
 
 fn wipe_reminders(cfg Config)! {
-	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
+	// db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
+	db := connect_sqlite(resolve_local_db_path())!
 
 	confirm := os.input("Confirm (Y/N): ")
 	mut confirmed := false
@@ -137,9 +150,11 @@ fn symlink_cmd(args []string)! {
 }
 
 fn init_cmd(args []string)! {
-	cfg := resolve_config()!
-	db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
-	location := if cfg.db_local { resolve_local_db_path() } else { cfg.db_host }
+	// cfg := resolve_config()!
+	// db := if cfg.db_local { connect_sqlite(resolve_local_db_path())! } else { connect_postgres(cfg)! }
+	location := resolve_local_db_path()
+	db := connect_sqlite(location)!
+	// location := if cfg.db_local { resolve_local_db_path() } else { cfg.db_host }
 	println("setting up db @ ${location}")
 	sql db {
 		create table Reminder
@@ -175,10 +190,15 @@ fn remove_cmd(args []string)! {
 	cfg := resolve_config()!
 	if args.len < 2 { return error("missing name of type 'reminder' to remove") }
 	match args[1] {
-		"reminder" {
+		"reminder-id" {
 			if args.len < 3 { return error("missing reminder id") }
 			reminder_id := strconv.atoi(args[2]) or { return error("${args[2]} is not a valid integer") }
-			remove_reminder(cfg, reminder_id)!
+			remove_reminder_id(cfg, reminder_id)!
+		}
+		"reminder" {
+			if args.len < 3 { return error("missing reminder id") }
+			reminder_ulid := args[2]
+			remove_reminder_ulid(cfg, reminder_ulid)!
 		}
 		else { return error("unknown type '${args[1]}' to remove") }
 	}
