@@ -116,10 +116,12 @@ fn sync_to_remote(cfg Config)! {
 	}
 
 	for reminder in local_reminders.filter(!remote_uuids.contains(it.uuid)) {
+		if reminder.delisted or { false } { continue }
 		store_reminder(cfg, remote_db, fn [reminder] () string { return reminder.uuid }, reminder.name)!
 	}
 
 	for reminder in remote_reminders.filter(!local_uuids.contains(it.uuid)) {
+		if reminder.delisted or { false } { continue }
 		store_reminder(cfg, local_db, fn [reminder] () string { return reminder.uuid }, reminder.name )!
 	}
 }
