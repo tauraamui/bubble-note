@@ -105,7 +105,7 @@ fn sync_to_remote(cfg Config)! {
 		if local_delisted == remote_delisted { continue }
 
 		if local_delisted {
-			remove_reminder_id(cfg, remote_db, reminder.id)!
+			remove_reminder_id(cfg, remote_db, remote_reminder.id)!
 			continue
 		}
 
